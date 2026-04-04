@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Αθηναϊκό — Παρουσίες</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg:#0c0d0f;--surface:#13151a;--surface2:#1a1d24;--border:#252830;
+    --gold:#c9a84c;--gold-light:#e8c96a;
+    --green:#2d7a4f;--green-bright:#3dab6e;
+    --red:#8b2020;--red-bright:#d94444;
+    --text:#e8e4dc;--text-muted:#6b6a66;--text-dim:#9b9890;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(201,168,76,.06) 0%,transparent 70%);pointer-events:none;z-index:0;}
+  nav{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:20px 36px;border-bottom:1px solid var(--border);background:rgba(12,13,15,.85);backdrop-filter:blur(8px);}
+  .nav-brand{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;letter-spacing:3px;color:var(--gold);text-transform:uppercase;}
+  .nav-brand span{font-weight:300;font-size:11px;letter-spacing:4px;color:var(--text-muted);display:block;margin-top:2px;}
+  .nav-time{font-size:28px;font-weight:300;color:var(--text-dim);letter-spacing:2px;font-variant-numeric:tabular-nums;}
+  .nav-tabs{display:flex;gap:4px;}
+  .tab-btn{padding:8px 20px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;}
+  .tab-btn:hover{color:var(--text);border-color:var(--border);}
+  .tab-btn.active{background:var(--surface2);color:var(--gold);border-color:var(--gold);}
+  .view{display:none;position:relative;z-index:1;}
+  .view.active{display:block;}
+  .checkin-wrap{max-width:760px;margin:0 auto;padding:48px 24px;}
+  .checkin-heading{text-align:center;margin-bottom:40px;}
+  .checkin-heading h1{font-family:'Playfair Display',serif;font-size:34px;color:var(--text);margin-bottom:8px;}
+  .checkin-heading p{color:var(--text-muted);font-size:14px;}
+  .emp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:32px;}
+  .emp-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;animation:fadeIn .3s ease both;}
+  .emp-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(201,168,76,.06),transparent);opacity:0;transition:opacity .2s;}
+  .emp-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+  .emp-card:hover::before,.emp-card.selected::before{opacity:1;}
+  .emp-card.selected{border-color:var(--gold);background:var(--surface2);}
+  .emp-avatar{width:52px;height:52px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:22px;color:var(--gold);font-weight:700;}
+  .emp-card.selected .emp-avatar{border-color:var(--gold);}
+  .emp-card-name{font-size:14px;font-weight:600;text-align:center;}
+  .emp-card-role{font-size:11px;color:var(--text-muted);text-align:center;}
+  .emp-status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}
+  .emp-status-dot.in{background:var(--green-bright);box-shadow:0 0 6px var(--green-bright);}
+  .action-row{display:flex;gap:12px;justify-content:center;}
+  .action-btn{display:flex;align-items:center;gap:10px;padding:16px 40px;border-radius:10px;border:none;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;min-width:200px;justify-content:center;}
+  .action-btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important;}
+  .btn-in{background:var(--green);color:#c8f5db;}
+  .btn-in:not(:disabled):hover{background:var(--green-bright);transform:translateY(-2px);box-shadow:0 8px 24px rgba(61,171,110,.3);}
+  .btn-out{background:var(--red);color:#f5c8c8;}
+  .btn-out:not(:disabled):hover{background:var(--red-bright);transform:translateY(-2px);box-shadow:0 8px 24px rgba(217,68,68,.3);}
+  .flash{position:fixed;top:90px;left:50%;transform:translateX(-50%) translateY(-20px);padding:14px 32px;border-radius:10px;font-size:15px;font-weight:600;opacity:0;transition:all .3s;pointer-events:none;z-index:100;white-space:nowrap;}
+  .flash.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .flash.in{background:#1a3d2a;color:#6dffa8;border:1px solid var(--green-bright);}
+  .flash.out{background:#3d1a1a;color:#ffb0b0;border:1px solid var(--red-bright);}
+  .flash.warn{background:#2d2010;color:#fbbf24;border:1px solid #92400e;}
+  .admin-wrap{max-width:900px;margin:0 auto;padding:48px 24px;}
+  .admin-section{margin-bottom:48px;}
+  .section-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .add-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .inp{padding:11px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s;flex:1;min-width:160px;}
+  .inp:focus{border-color:var(--gold);}
+  .inp::placeholder{color:var(--text-muted);}
+  .btn-primary{padding:11px 24px;border-radius:8px;border:none;background:var(--gold);color:#0c0d0f;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  .btn-primary:hover{background:var(--gold-light);}
+  .btn-sm{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .2s;}
+  .btn-sm:hover{border-color:var(--red-bright);color:var(--red-bright);}
+  .emp-list-admin{display:flex;flex-direction:column;gap:8px;}
+  .emp-row-admin{display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--surface);border:1px solid var(--border);border-radius:10px;}
+  .emp-row-admin .emp-avatar{width:38px;height:38px;font-size:16px;}
+  .emp-row-name{font-weight:600;font-size:14px;}
+  .emp-row-role{font-size:12px;color:var(--text-muted);}
+  .status-badge{margin-left:auto;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;}
+  .status-badge.in{background:rgba(45,122,79,.3);color:var(--green-bright);}
+  .status-badge.out{background:var(--surface2);color:var(--text-muted);}
+  .reports-wrap{max-width:960px;margin:0 auto;padding:48px 24px;}
+  .report-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:28px;}
+  .toggle-group{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .toggle-btn{padding:9px 20px;background:transparent;border:none;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;}
+  .toggle-btn.active{background:var(--surface2);color:var(--gold);}
+  .sel{padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;}
+  .btn-export{margin-left:auto;padding:9px 22px;border-radius:8px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+  .btn-export:hover{background:var(--gold);color:#0c0d0f;}
+  .tbl-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{padding:12px 16px;text-align:left;background:var(--surface2);color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
+  tbody tr:hover{background:var(--surface);}
+  tbody td{padding:13px 16px;}
+  .td-hours{font-family:monospace;font-weight:700;color:var(--gold);}
+  .td-in{color:var(--green-bright);font-weight:600;}
+  .td-out{color:var(--red-bright);font-weight:600;}
+  .empty-row td{text-align:center;color:var(--text-muted);padding:40px;}
+  .divider{border:none;border-top:1px solid var(--border);margin:32px 0;}
+  details summary{color:var(--text-muted);cursor:pointer;font-size:13px;padding:10px 0;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;}
+  details summary::before{content:'▸';transition:transform .2s;}
+  details[open] summary::before{transform:rotate(90deg);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .modal-overlay.open{opacity:1;pointer-events:all;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:420px;max-width:95vw;transform:translateY(16px);transition:transform .2s;box-shadow:0 24px 64px rgba(0,0,0,.6);}
+  .modal-overlay.open .modal{transform:none;}
+  .modal-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--gold);margin-bottom:24px;}
+  .modal-field{margin-bottom:16px;}
+  .modal-field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
+  .modal-field input[type="datetime-local"]{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s;color-scheme:dark;}
+  .modal-field input[type="datetime-local"]:focus{border-color:var(--gold);}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;}
+  .btn-cancel{padding:10px 22px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s;}
+  .btn-cancel:hover{border-color:var(--text-muted);color:var(--text);}
+  .btn-save{padding:10px 24px;border-radius:8px;border:none;background:var(--gold);color:#0c0d0f;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;}
+  .btn-save:hover{background:var(--gold-light);}
+  .btn-del{padding:10px 18px;border-radius:8px;border:1px solid var(--red);background:transparent;color:var(--red-bright);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s;margin-right:auto;}
+  .btn-del:hover{background:var(--red);color:#fff;}
+  .modal-warn{background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--gold);margin-bottom:16px;line-height:1.5;}
+  .btn-edit{padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:11px;cursor:pointer;transition:all .2s;}
+  .btn-edit:hover{border-color:var(--gold);color:var(--gold);}
+  .loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:300;transition:opacity .4s;}
+  .loading-overlay.hidden{opacity:0;pointer-events:none;}
+  .loading-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px;}
+  .loading-text{font-size:13px;color:var(--text-muted);letter-spacing:1px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Συνδεση...</div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">Επεξεργασια Καταχωρησης</div>
+    <div id="editEmpLabel" style="font-size:13px;color:var(--text-muted);margin-bottom:20px;"></div>
+    <div class="modal-field"><label>Εισοδος</label><input type="datetime-local" id="editIn"/></div>
+    <div class="modal-field"><label>Εξοδος (προαιρετικο)</label><input type="datetime-local" id="editOut"/></div>
+    <div class="modal-warn" id="editWarn" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-del" onclick="deleteEntry()">Διαγραφη</button>
+      <button class="btn-cancel" onclick="closeEditModal()">Ακυρωση</button>
+      <button class="btn-save" onclick="saveEntry()">Αποθηκευση</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="warnModal">
+  <div class="modal">
+    <div class="modal-title">Προειδοποιηση</div>
+    <div class="modal-warn" id="warnText"></div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Θελετε να συνεχισετε;</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeWarnModal()">Ακυρωση</button>
+      <button class="btn-save" id="warnConfirmBtn" onclick="confirmWarnAction()">Ναι, συνεχεια</button>
+    </div>
+  </div>
+</div>
+
+<nav>
+  <div class="nav-brand">ΑΘΗΝΑΪΚΟ <span>ΠΑΡΟΥΣΙΟΛΟΓΙΟ</span></div>
+  <div class="nav-time" id="clock">--:--</div>
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('checkin',this)">Παρουσια</button>
+    <button class="tab-btn" onclick="switchTab('admin',this)">Υπαλληλοι</button>
+    <button class="tab-btn" onclick="switchTab('reports',this)">Αναφορες</button>
+  </div>
+</nav>
+
+<div class="view active" id="view-checkin">
+  <div class="checkin-wrap">
+    <div class="checkin-heading">
+      <h1>Καλημερα!</h1>
+      <p>Επιλεξτε το ονομα σας και καταγραψτε εισοδο η εξοδο</p>
+    </div>
+    <div class="emp-grid" id="empGrid"></div>
+    <div class="action-row">
+      <button class="action-btn btn-in"  id="btnIn"  disabled onclick="recordEntry('in')">ΕΙΣΟΔΟΣ</button>
+      <button class="action-btn btn-out" id="btnOut" disabled onclick="recordEntry('out')">ΕΞΟΔΟΣ</button>
+    </div>
+  </div>
+</div>
+
+<div class="view" id="view-admin">
+  <div class="admin-wrap">
+    <div class="admin-section">
+      <div class="section-title">Προσθηκη Υπαλληλου</div>
+      <div class="add-row">
+        <input class="inp" id="newName" placeholder="Ονοματεπωνυμο" onkeydown="if(event.key==='Enter')addEmployee()"/>
+        <input class="inp" id="newRole" placeholder="Θεση (π.χ. Σερβιτορος)" style="max-width:220px" onkeydown="if(event.key==='Enter')addEmployee()"/>
+        <button class="btn-primary" onclick="addEmployee()">+ Προσθηκη</button>
+      </div>
+    </div>
+    <div class="admin-section">
+      <div class="section-title">Λιστα Υπαλληλων</div>
+      <div class="emp-list-admin" id="empListAdmin"></div>
+    </div>
+  </div>
+</div>
+
+<div class="view" id="view-reports">
+  <div class="reports-wrap">
+    <div class="section-title" style="font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);margin-bottom:24px;padding-bottom:10px;border-bottom:1px solid var(--border);">Αναφορες Ωρων</div>
+    <div class="report-controls">
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="tbWeek"  onclick="setMode('week')">Εβδομαδιαια</button>
+        <button class="toggle-btn"        id="tbMonth" onclick="setMode('month')">Μηνιαια</button>
+      </div>
+      <select class="sel" id="reportEmp" onchange="renderReport()"><option value="all">Ολοι οι υπαλληλοι</option></select>
+      <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead><tr><th>Περιοδος</th><th>Υπαλληλος</th><th>Ημερες</th><th>Συνολο Ωρων</th></tr></thead>
+      <tbody id="reportBody"></tbody></table>
+    </div>
+    <hr class="divider"/>
+    <details>
+      <summary>Αναλυτικο ημερολογιο</summary>
+      <div class="tbl-wrap" style="margin-top:16px">
+        <table><thead><tr><th>Υπαλληλος</th><th>Εισοδος</th><th>Εξοδος</th><th>Διαρκεια</th><th></th></tr></thead>
+        <tbody id="logBody"></tbody></table>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  SUPABASE CONFIG — αντικατεστησε τις 2 τιμες
+// ══════════════════════════════════════════════════
+const SUPABASE_URL = 'https://fffeyczuvojuhzgfhxng.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmZmV5Y3p1dm9qdWh6Z2ZoeG5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTg4MzYsImV4cCI6MjA5MDg5NDgzNn0.58E-sQeEVt0QMWY3iu9ZfuJ7rUuFksjy3txZ1GGzy1Y';
+// ══════════════════════════════════════════════════
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const pad=n=>String(n).padStart(2,'0');
+const uid=()=>Math.random().toString(36).slice(2,10);
+function fmtTime(ts){if(!ts)return'–';const d=new Date(ts);return`${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+function fmtHours(ms){if(!ms||ms<=0)return'–';return`${pad(Math.floor(ms/3600000))}:${pad(Math.floor((ms%3600000)/60000))}`;}
+function toLocalDT(ts){if(!ts)return'';const d=new Date(ts);return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+function dayStr(ts){const d=new Date(ts);return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function getWeekStart(ts){const d=new Date(ts),day=d.getDay()===0?7:d.getDay(),m=new Date(d);m.setDate(d.getDate()-day+1);m.setHours(0,0,0,0);return m.getTime();}
+function weekLabel(ts){const m=new Date(ts),s=new Date(ts);s.setDate(m.getDate()+6);return`${pad(m.getDate())}/${pad(m.getMonth()+1)} - ${pad(s.getDate())}/${pad(s.getMonth()+1)}/${s.getFullYear()}`;}
+function monthKey(ts){const d=new Date(ts);return`${d.getFullYear()}-${pad(d.getMonth()+1)}`;}
+const MN=['','Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+function monthLabel(k){const[y,m]=k.split('-');return`${MN[+m]} ${y}`;}
+function isOver10h(a,b){const ms=b-a;return ms>36000000?ms:null;}
+
+let employees=[],entries=[],selectedEmpId=null,reportMode='week',pendingAction=null,editingEntryId=null;
+
+function updateClock(){const d=new Date();document.getElementById('clock').textContent=`${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+updateClock();setInterval(updateClock,1000);
+
+async function loadAll(){
+  const[{data:emps},{data:ents}]=await Promise.all([
+    sb.from('employees').select('*').order('name'),
+    sb.from('entries').select('*').order('in_time',{ascending:false})
+  ]);
+  employees=emps||[];entries=ents||[];
+  document.getElementById('loadingOverlay').classList.add('hidden');
+  renderGrid();
+  if(document.getElementById('view-admin').classList.contains('active'))renderAdminList();
+  if(document.getElementById('view-reports').classList.contains('active')){renderReportEmpSelect();renderReport();renderLog();}
+}
+
+sb.channel('att-changes').on('postgres_changes',{event:'*',schema:'public'},()=>loadAll()).subscribe();
+
+function switchTab(name,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');btn.classList.add('active');
+  if(name==='checkin'){selectedEmpId=null;renderGrid();}
+  if(name==='admin')renderAdminList();
+  if(name==='reports'){renderReportEmpSelect();renderReport();renderLog();}
+}
+
+function isIn(empId){const last=entries.filter(e=>e.emp_id===empId)[0];return last&&!last.out_time;}
+function hasDayEntry(empId,type,excludeId=null){
+  const today=dayStr(Date.now());
+  return entries.some(e=>{
+    if(e.id===excludeId||e.emp_id!==empId)return false;
+    if(type==='in')return dayStr(e.in_time)===today;
+    if(type==='out')return e.out_time&&dayStr(e.in_time)===today;
+    return false;
+  });
+}
+
+function renderGrid(){
+  const grid=document.getElementById('empGrid');
+  if(!employees.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-muted);font-size:14px;">Δεν εχουν προστεθει υπαλληλοι.<br>Πηγαινετε στην καρτελα Υπαλληλοι.</div>';return;}
+  grid.innerHTML=employees.map(emp=>`
+    <div class="emp-card ${selectedEmpId===emp.id?'selected':''}" onclick="selectEmp('${emp.id}')">
+      <div class="emp-avatar">${emp.name.charAt(0).toUpperCase()}</div>
+      <div class="emp-status-dot ${isIn(emp.id)?'in':''}"></div>
+      <div class="emp-card-name">${emp.name}</div>
+      ${emp.role?`<div class="emp-card-role">${emp.role}</div>`:''}
+    </div>`).join('');
+  updateButtons();
+}
+function selectEmp(id){selectedEmpId=selectedEmpId===id?null:id;renderGrid();}
+function updateButtons(){
+  const bI=document.getElementById('btnIn'),bO=document.getElementById('btnOut');
+  if(!selectedEmpId){bI.disabled=true;bO.disabled=true;return;}
+  const inside=isIn(selectedEmpId);bI.disabled=inside;bO.disabled=!inside;
+}
+
+async function recordEntry(type){
+  if(!selectedEmpId)return;
+  const now=Date.now(),emp=employees.find(e=>e.id===selectedEmpId);
+  if(type==='in'){
+    if(hasDayEntry(selectedEmpId,'in')){showWarnModal(`Ο ${emp.name} εχει ηδη εισοδο σημερα. Δεν επιτρεπεται 2η εισοδος.`,null);return;}
+    const{error}=await sb.from('entries').insert({id:uid(),emp_id:selectedEmpId,in_time:now,out_time:null});
+    if(error){showFlash('Σφαλμα αποθηκευσης','warn');return;}
+    showFlash(`${emp.name} - Εισοδος ${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`,'in');
+    selectedEmpId=null;await loadAll();
+  }else{
+    if(hasDayEntry(selectedEmpId,'out')){showWarnModal(`Ο ${emp.name} εχει ηδη εξοδο σημερα. Δεν επιτρεπεται 2η εξοδος.`,null);return;}
+    const entry=entries.find(e=>e.emp_id===selectedEmpId&&!e.out_time);
+    if(!entry)return;
+    const over=isOver10h(entry.in_time,now);
+    const doOut=async()=>{
+      await sb.from('entries').update({out_time:now}).eq('id',entry.id);
+      showFlash(`${emp.name} - Εξοδος ${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`,'out');
+      selectedEmpId=null;await loadAll();
+    };
+    if(over)showWarnModal(`Η βαρδια του ${emp.name} ειναι ${fmtHours(over)} (>10 ωρες). Καταχωρηση εξοδου;`,doOut);
+    else doOut();
+  }
+}
+
+let flashT;
+function showFlash(msg,type){
+  const el=document.getElementById('flash');el.textContent=msg;el.className=`flash ${type} show`;
+  clearTimeout(flashT);flashT=setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+function showWarnModal(msg,onConfirm){
+  document.getElementById('warnText').textContent=msg;pendingAction=onConfirm;
+  document.getElementById('warnConfirmBtn').style.display=onConfirm?'':'none';
+  document.getElementById('warnModal').classList.add('open');
+}
+function closeWarnModal(){document.getElementById('warnModal').classList.remove('open');pendingAction=null;}
+function confirmWarnAction(){if(pendingAction)pendingAction();closeWarnModal();}
+
+function openEditModal(entryId){
+  const entry=entries.find(e=>e.id===entryId);if(!entry)return;
+  const emp=employees.find(em=>em.id===entry.emp_id);
+  editingEntryId=entryId;
+  document.getElementById('editEmpLabel').textContent=emp?emp.name+(emp.role?' - '+emp.role:''):'–';
+  document.getElementById('editIn').value=toLocalDT(entry.in_time);
+  document.getElementById('editOut').value=entry.out_time?toLocalDT(entry.out_time):'';
+  document.getElementById('editWarn').style.display='none';
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEditModal(){document.getElementById('editModal').classList.remove('open');editingEntryId=null;}
+
+async function saveEntry(){
+  if(!editingEntryId)return;
+  const entry=entries.find(e=>e.id===editingEntryId);if(!entry)return;
+  const inVal=document.getElementById('editIn').value;
+  const outVal=document.getElementById('editOut').value;
+  if(!inVal){showEW('Η ωρα εισοδου ειναι υποχρεωτικη.');return;}
+  const inTs=new Date(inVal).getTime(),outTs=outVal?new Date(outVal).getTime():null;
+  if(outTs&&outTs<=inTs){showEW('Η εξοδος πρεπει να ειναι μετα την εισοδο.');return;}
+  const sameDay=entries.filter(e=>e.id!==editingEntryId&&e.emp_id===entry.emp_id&&dayStr(e.in_time)===dayStr(inTs));
+  if(sameDay.length){showEW('Υπαρχει ηδη αλλη καταχωρηση για αυτον τον υπαλληλο την ιδια ημερα.');return;}
+  const over=outTs?isOver10h(inTs,outTs):null;
+  const doSave=async()=>{
+    await sb.from('entries').update({in_time:inTs,out_time:outTs}).eq('id',editingEntryId);
+    closeEditModal();await loadAll();showFlash('Αποθηκευθηκε','in');
+  };
+  if(over){closeEditModal();showWarnModal(`Η βαρδια ειναι ${fmtHours(over)} (>10 ωρες). Αποθηκευση;`,doSave);}
+  else doSave();
+}
+function showEW(msg){const w=document.getElementById('editWarn');w.textContent=msg;w.style.display='';}
+
+async function deleteEntry(){
+  if(!editingEntryId)return;
+  await sb.from('entries').delete().eq('id',editingEntryId);
+  closeEditModal();await loadAll();showFlash('Διαγραφηκε','out');
+}
+
+async function addEmployee(){
+  const name=document.getElementById('newName').value.trim();if(!name)return;
+  const role=document.getElementById('newRole').value.trim();
+  await sb.from('employees').insert({id:uid(),name,role});
+  document.getElementById('newName').value='';document.getElementById('newRole').value='';
+  await loadAll();renderAdminList();
+}
+async function removeEmployee(id){
+  if(!confirm('Διαγραφη υπαλληλου;'))return;
+  await sb.from('employees').delete().eq('id',id);
+  await loadAll();renderAdminList();
+}
+function renderAdminList(){
+  const el=document.getElementById('empListAdmin');
+  if(!employees.length){el.innerHTML='<p style="color:var(--text-muted);font-size:13px;padding:16px 0">Δεν υπαρχουν υπαλληλοι ακομα.</p>';return;}
+  el.innerHTML=employees.map(emp=>`
+    <div class="emp-row-admin">
+      <div class="emp-avatar">${emp.name.charAt(0).toUpperCase()}</div>
+      <div><div class="emp-row-name">${emp.name}</div>${emp.role?`<div class="emp-row-role">${emp.role}</div>`:''}</div>
+      <span class="status-badge ${isIn(emp.id)?'in':'out'}">${isIn(emp.id)?'ΜΕΣΑ':'ΕΚΤΟΣ'}</span>
+      <button class="btn-sm" onclick="removeEmployee('${emp.id}')">Διαγραφη</button>
+    </div>`).join('');
+}
+
+function setMode(m){
+  reportMode=m;
+  document.getElementById('tbWeek').classList.toggle('active',m==='week');
+  document.getElementById('tbMonth').classList.toggle('active',m==='month');
+  renderReport();
+}
+function renderReportEmpSelect(){
+  const sel=document.getElementById('reportEmp'),cur=sel.value;
+  sel.innerHTML='<option value="all">Ολοι οι υπαλληλοι</option>'+employees.map(e=>`<option value="${e.id}"${cur===e.id?' selected':''}>${e.name}</option>`).join('');
+}
+function buildReport(){
+  const ef=document.getElementById('reportEmp')?.value||'all';
+  const filtered=entries.filter(e=>e.out_time&&(ef==='all'||e.emp_id===ef));
+  const groups={};
+  filtered.forEach(e=>{
+    const gKey=reportMode==='week'?getWeekStart(e.in_time):monthKey(e.in_time);
+    const key=`${gKey}__${e.emp_id}`;
+    if(!groups[key]){const emp=employees.find(em=>em.id===e.emp_id);groups[key]={period:gKey,empId:e.emp_id,empName:emp?.name||'–',totalMs:0,days:new Set()};}
+    groups[key].totalMs+=(e.out_time-e.in_time);
+    groups[key].days.add(new Date(e.in_time).toDateString());
+  });
+  return Object.values(groups).map(g=>({...g,days:g.days.size})).sort((a,b)=>String(b.period).localeCompare(String(a.period))||a.empName.localeCompare(b.empName));
+}
+function renderReport(){
+  const rows=buildReport(),tbody=document.getElementById('reportBody');
+  if(!rows.length){tbody.innerHTML='<tr class="empty-row"><td colspan="4">Δεν υπαρχουν ολοκληρωμενες καταχωρησεις.</td></tr>';return;}
+  tbody.innerHTML=rows.map(r=>`<tr><td>${reportMode==='week'?weekLabel(r.period):monthLabel(r.period)}</td><td>${r.empName}</td><td style="text-align:center">${r.days}</td><td class="td-hours">${fmtHours(r.totalMs)}</td></tr>`).join('');
+}
+function renderLog(){
+  const tbody=document.getElementById('logBody');
+  if(!entries.length){tbody.innerHTML='<tr class="empty-row"><td colspan="5">Κανενα αρχειο.</td></tr>';return;}
+  tbody.innerHTML=entries.map(e=>{
+    const emp=employees.find(em=>em.id===e.emp_id);
+    const dur=e.out_time?e.out_time-e.in_time:null;
+    const over=dur&&dur>36000000;
+    return`<tr><td>${emp?.name||'–'}</td><td class="td-in">${fmtTime(e.in_time)}</td><td class="${e.out_time?'td-out':''}">${e.out_time?fmtTime(e.out_time):'<span style="color:var(--green-bright)">Μεσα</span>'}</td><td class="td-hours" style="${over?'color:var(--red-bright)':''}">${e.out_time?fmtHours(dur):'–'}${over?' !':''}</td><td><button class="btn-edit" onclick="openEditModal('${e.id}')">Edit</button></td></tr>`;
+  }).join('');
+}
+function exportCSV(){
+  const rows=buildReport();
+  const h='Περιοδος,Υπαλληλος,Ημερες,Συνολο Ωρων\n';
+  const b=rows.map(r=>`"${reportMode==='week'?weekLabel(r.period):monthLabel(r.period)}","${r.empName}",${r.days},"${fmtHours(r.totalMs)}"`).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+h+b],{type:'text/csv;charset=utf-8;'}));
+  a.download=`athinaiko_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+document.getElementById('editModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEditModal();});
+document.getElementById('warnModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeWarnModal();});
+
+loadAll();
+</script>
+</body>
+</html>
