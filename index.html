@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="el">
 <head>
@@ -402,8 +403,9 @@ function hasDayEntry(empId,type,excludeId=null){
 
 function renderGrid(){
   const grid=document.getElementById('empGrid');
-  if(!employees.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--text-muted);font-size:13px;">Πηγαινετε στην καρτελα Υπαλληλοι για να προσθεσετε.</div>';return;}
-  grid.innerHTML=employees.map(emp=>`
+  const active=employees.filter(e=>e.active!==false);
+  if(!active.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--text-muted);font-size:13px;">Δεν υπαρχουν ενεργοι υπαλληλοι.</div>';return;}
+  grid.innerHTML=active.map(emp=>`
     <div class="emp-card ${selectedEmpId===emp.id?'selected':''}" onclick="selectEmp('${emp.id}')">
       <div class="emp-avatar">${emp.name.charAt(0).toUpperCase()}</div>
       <div class="emp-status-dot ${isIn(emp.id)?'in':''}"></div>
@@ -510,19 +512,38 @@ async function addEmployee(){
   document.getElementById('newName').value='';document.getElementById('newRole').value='';
   await loadAll();renderAdminList();
 }
+async function toggleActive(id, active){
+  await sb.from('employees').update({active}).eq('id',id);
+  await loadAll();renderAdminList();
+}
 async function removeEmployee(id){
-  if(!confirm('Διαγραφη υπαλληλου;'))return;
-  await sb.from('employees').delete().eq('id',id);
+  const emp=employees.find(e=>e.id===id);
+  const hasEntries=entries.some(e=>e.emp_id===id);
+  const msg=hasEntries
+    ? 'Διαγραφη ' + (emp?.name||'') + '; Θα διαγραφουν και ολες οι καταχωρησεις παρουσιας.'
+    : 'Διαγραφη ' + (emp?.name||'') + ';';
+  if(!confirm(msg))return;
+  if(hasEntries){
+    const{error:e1}=await sb.from('entries').delete().eq('emp_id',id);
+    if(e1){showFlash('Σφαλμα διαγραφης καταχωρησεων','out');console.error(e1);return;}
+  }
+  const{error:e2}=await sb.from('employees').delete().eq('id',id);
+  if(e2){showFlash('Σφαλμα διαγραφης υπαλληλου','out');console.error(e2);return;}
+  showFlash((emp?.name||'Υπαλληλος') + ' διαγραφηκε','out');
   await loadAll();renderAdminList();
 }
 function renderAdminList(){
   const el=document.getElementById('empListAdmin');
   if(!employees.length){el.innerHTML='<p style="color:var(--text-muted);font-size:12px;padding:14px 0">Δεν υπαρχουν υπαλληλοι.</p>';return;}
   el.innerHTML=employees.map(emp=>`
-    <div class="emp-row-admin">
+    <div class="emp-row-admin" style="opacity:${emp.active===false?'.45':'1'}">
       <div class="emp-avatar">${emp.name.charAt(0).toUpperCase()}</div>
       <div><div class="emp-row-name">${emp.name}</div>${emp.role?`<div class="emp-row-role">${emp.role}</div>`:''}</div>
       <span class="status-badge ${isIn(emp.id)?'in':'out'}">${isIn(emp.id)?'ΜΕΣΑ':'ΕΚΤΟΣ'}</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-muted);margin-left:auto;">
+        <input type="checkbox" ${emp.active!==false?'checked':''} onchange="toggleActive('${emp.id}',this.checked)" style="accent-color:var(--gold);width:15px;height:15px;cursor:pointer;"/>
+        Εμφανιση
+      </label>
       <button class="btn-sm" onclick="removeEmployee('${emp.id}')">Διαγραφη</button>
     </div>`).join('');
 }
