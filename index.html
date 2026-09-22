@@ -511,9 +511,21 @@ async function addEmployee(){
   await loadAll();renderAdminList();
 }
 async function removeEmployee(id){
-  if(!confirm('Διαγραφη υπαλληλου;'))return;
-  await sb.from('employees').delete().eq('id',id);
+  const emp=employees.find(e=>e.id===id);
+  const hasEntries=entries.some(e=>e.emp_id===id);
+  const msg=hasEntries
+    ? 'Διαγραφη ' + (emp?.name||'') + '; Θα διαγραφουν και ολες οι καταχωρησεις παρουσιας.'
+    : 'Διαγραφη ' + (emp?.name||'') + ';';
+  if(!confirm(msg))return;
+  if(hasEntries){
+    const{error:e1}=await sb.from('entries').delete().eq('emp_id',id);
+    if(e1){showFlash('Σφαλμα','out');console.error(e1);return;}
+  }
+  const{error:e2}=await sb.from('employees').delete().eq('id',id);
+  if(e2){showFlash('Σφαλμα','out');console.error(e2);return;}
+  showFlash((emp?.name||'') + ' διαγραφηκε','out');
   await loadAll();renderAdminList();
+}
 }
 function renderAdminList(){
   const el=document.getElementById('empListAdmin');
